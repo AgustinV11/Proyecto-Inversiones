@@ -3,6 +3,7 @@ import numpy as np
 import yfinance as yf
 import requests
 import streamlit as st
+import os
 from datetime import datetime
 from sqlalchemy import create_engine, MetaData, Table, Column, String, Date, Float, Integer, Text, text, PrimaryKeyConstraint
 from sqlalchemy.pool import NullPool
@@ -381,6 +382,7 @@ if uploaded_file is not None and db_host and db_name and db_user and db_pass:
         
 else:
     st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
 
 
 
