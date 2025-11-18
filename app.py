@@ -59,7 +59,7 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
 
         # --- CALCULO DE COSTO EN USD (SEGÚN FECHA) ---
         df_cedears["costo_usd"] = np.where(
-          	df_cedears.fecha < pd.to_datetime("2025-04-15"), # Fecha de ejemplo
+          	df_cedears.fecha < pd.to_datetime("2025-04-15"),
           	df_cedears.costo_ars / df_cedears.dolar_mep,
           	df_cedears.costo_ars / np.minimum(df_cedears.dolar_oficial, df_cedears.dolar_mep)
         )
@@ -334,3 +334,4 @@ if submit_button:
     else:
         # Si faltan campos
         st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
