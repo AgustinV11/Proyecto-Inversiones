@@ -37,6 +37,13 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
         ##CAMBIO DE TIPO DE DATO A FECHA
         df_cedears.fecha = pd.to_datetime(df_cedears.fecha)
         df_cedears.fecha_descarga = pd.to_datetime(df_cedears.fecha_descarga)
+        
+        # ORDENAR POR FECHA
+        if "fecha" in df_cedears.columns:
+            df_cedears.sort_values(by="fecha", inplace=True)
+            df_cedears.reset_index(drop=True, inplace=True)
+        else:
+            print("Error: No se pudo ordenar por fecha")
 
         ##CALCULO DE COSTO EN PESOS ARGENTINOS
         df_cedears["costo_ars"] = (df_cedears.cantidad * df_cedears.precio_compra)+df_cedears.gastos
@@ -358,6 +365,7 @@ if submit_button:
     else:
         # Si faltan campos
         st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
 
 
 
