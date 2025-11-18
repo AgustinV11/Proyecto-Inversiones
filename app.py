@@ -17,7 +17,7 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
     try:
         ##IMPORTACION DE BASE DE DATOS
         st.write(f"Leyendo archivo: {archivo_subido.name}...")
-        if archivo_subido.name.endswith(('.xls', '.xlsx')):
+        if archivo_subido.name.endswith(('.xlsx')):
             df = pd.read_excel(archivo_subido, sheet_name="resultados_por_lotes_finales")
         else:
             st.error("Error: Formato de archivo no soportado.")
@@ -256,6 +256,9 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
 
         elif "worksheet named" in error_message and "not found" in error_message:
             return False, "❌ Error de Excel: No se encontró la hoja 'resultados_por_lotes_finales' en el archivo que subiste. Por favor, revisa el archivo."
+
+        elif "specify an engine manually" in error_message:
+            return False, "❌ Error de Archivo: El formato de Excel .xls no es compatible. Por favor, abre el archivo en Excel y guárdalo como .xlsx antes de subirlo."
         
         elif "relation" in error_message and "does not exist" in error_message:
             return False, f"❌ Error de Base de Datos: Una de las tablas no existe. (Detalle: {e})"
@@ -355,6 +358,7 @@ if submit_button:
     else:
         # Si faltan campos
         st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
 
 
 
