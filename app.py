@@ -271,7 +271,7 @@ with st.form(key="upload_form"):
     col1, col2 = st.columns(2)
     with col1:
         db_host = st.text_input("Host (Servidor)", placeholder="db.xxxxxxxx.supabase.co")
-        db_user = st.text_input("Usuario", type="usuario")
+        db_user = st.text_input("Usuario", "usuario")
     with col2:
         db_name = st.text_input("Nombre de la Base de Datos", "postgres")
         db_pass = st.text_input("Contraseña", type="password")
@@ -383,6 +383,7 @@ if uploaded_file is not None and db_host and db_name and db_user and db_pass:
         
 else:
     st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
 
 
 
