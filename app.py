@@ -260,7 +260,7 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
 # -----------------------------------------------------------------
 st.set_page_config(layout="centered", page_title="Análisis de inversiones")
 st.title("💰 Análisis de inversiones")
-st.write("Sube tu reporte del broker y completa los datos de tu Base de Datos de Supabase (PostgreSQL).)
+st.write("Sube tu reporte del broker y completa los datos de tu Base de Datos de Supabase (PostgreSQL).")
 
 # --- Formulario de Carga ---
 with st.form(key="upload_form"):
@@ -387,6 +387,7 @@ if uploaded_file is not None and db_host and db_name and db_user and db_pass:
         
 else:
     st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
 
 
 
