@@ -188,7 +188,6 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
                     if_exists='append',
                     index=False
                 )
-                st.success(f"Carga de datos exitosa en '{table_name}'")
         except Exception as e:
             st.error(f"ERROR en la carga de 'cedears': {e}")
             raise e
@@ -230,7 +229,6 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
                             if_exists='append',
                             index=False
                         )
-                        st.success(f"Carga de datos exitosa en '{table_name_hist}'")
                 except Exception as ex:
                     # COMPROBACIÓN DE DATOS DUPLICADOS
                     if "violates unique constraint" in str(ex) or "duplicate key value" in str(ex):
@@ -383,6 +381,7 @@ if uploaded_file is not None and db_host and db_name and db_user and db_pass:
         
 else:
     st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
 
 
 
