@@ -217,6 +217,7 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
                 table_name_hist,
                 metadata_hist,
                 Column('ticker', String, primary_key=True),
+                Column('cantidad', Float),
                 Column('fecha_ejecucion', Date, primary_key=True),
                 Column('moneda', String, primary_key=True),
                 Column('costo', Float),
@@ -365,6 +366,7 @@ if submit_button:
     else:
         # Si faltan campos
         st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
 
 
 
