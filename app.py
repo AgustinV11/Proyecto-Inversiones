@@ -1,79 +1,302 @@
-import streamlit as st
+##INSTALAR E IMPORTAR BIBLIOTECAS
+!pip install supabase
+!pip install sqlalchemy psycopg2-binary
 import pandas as pd
-from sqlalchemy import create_engine
+import numpy as np
+import yfinance as yf
+import requests
+import os
+import streamlit as st
 import io
+from datetime import datetime
+from supabase import create_client, Client
+from sqlalchemy import create_engine, MetaData, Table, Column, String, Date, Float, Integer, Text, text, PrimaryKeyConstraint
+from sqlalchemy.pool import NullPool
 
-# -----------------------------------------------------------------
-# 1. LÓGICA DE PROCESAMIENTO (TU CÓDIGO VA AQUÍ)
-# -----------------------------------------------------------------
-# Esta función es tu script de Pandas.
-# Recibe el archivo y las credenciales de SQL.
-def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass, table_name, upload_mode):
-    """
-    Procesa un archivo (CSV o Excel) y lo carga a una base de datos PostgreSQL.
-    """
+##IMPORTACION DE BASE DE DATOS
+st.write(f"Leyendo archivo: {archivo_subido.name}...")
+if archivo_subido.name.endswith('.csv'):
+    df = pd.read_csv(archivo_subido)
+elif archivo_subido.name.endswith(('.xls', '.xlsx')):
+    df = pd.read_excel(archivo_subido)
+else:
+    return False, f"❌ Error: Formato de archivo no soportado."
+
+##RENOMBRAR COLUMNAS
+df.rename(columns = {"Cantidad": "cantidad", "Descripcion": "descripcion", "Fecha": "fecha", "Fecha Lote": "fecha_descarga", "Gastos": "gastos", "Moneda": "moneda", "Operacion": "operacion", "Precio Compra": "precio_compra", "Ticker": "ticker", "Tipo": "tipo", "DolarCCL": "dolar_ccl", "DolarMEP": "dolar_mep", "DolarOficial": "dolar_oficial"}, inplace = True)
+
+##ELIMINACIÓN DE COLUMNAS INNECESARIAS
+df.drop(["dolar_ccl", "operacion"], axis=1, inplace=True)
+
+##FILTRO DE DATOS POR TIPO DE ACTIVO
+df_cedears = df[df.tipo == "Cedears"]
+
+##CAMBIO DE TIPO DE DATO A FECHA
+df_cedears.fecha = pd.to_datetime(df_cedears.fecha)
+df_cedears.fecha_descarga = pd.to_datetime(df_cedears.fecha_descarga)
+
+##CALCULO DE COSTO EN PESOS ARGENTINOS
+df_cedears["costo_ars"] = (df_cedears.cantidad * df_cedears.precio_compra)+df_cedears.gastos
+
+##CALCULO DE COSTO EN USD (SEGÚN FECHA)
+df_cedears["costo_usd"] = np.where(
+    df_cedears.fecha < pd.to_datetime("2025-04-15"),
+    df_cedears.costo_ars / df_cedears.dolar_mep,
+    df_cedears.costo_ars / np.minimum(df_cedears.dolar_oficial, df_cedears.dolar_mep)
+)
+
+## LISTA UNICA DE ACCIONES
+tickers_unicos = df_cedears.ticker.unique()
+
+## CREACIÓN DE DICCIONARIO PARA LA COTIZACION ACTUAL
+cotizacion_actual = {}
+
+## COTIZACION ACTUALIZADA
+for ticker in tickers_unicos:
+  ticker_argentina = ticker + ".BA"
+  try:
+    ticker_obj = yf.Ticker(ticker_argentina)
+    info = ticker_obj.info
+    if 'regularMarketPrice' in info:
+        precio = info['regularMarketPrice']
+    else:
+        precio = ticker_obj.fast_info["last_price"]
+
+    cotizacion_actual[ticker] = precio
+
+  except Exception as e:
+    print(f"Error al obtener la cotización de {ticker}: {e}")
+
+## CALCULO DE TENENCIA TOTAL ACTUALIZADA EN PESOS ARGENTINOS
+df_cedears["tenencia_ars"] = (df_cedears.cantidad * df_cedears.ticker.map(cotizacion_actual))*(1-0.006)
+
+## CREACION DE FUNCION PARA OBTENER VALOR DE DOLAR ACTUALIZADO
+
+def obtener_valores_dolar():
+    api_url = "https://dolarapi.com/v1/dolares"
     try:
-        # --- A. LECTURA INTELIGENTE DEL ARCHIVO ---
-        st.write(f"Leyendo archivo: {archivo_subido.name}...")
-        if archivo_subido.name.endswith('.csv'):
-            df = pd.read_csv(archivo_subido)
-        elif archivo_subido.name.endswith(('.xls', '.xlsx')):
-            df = pd.read_excel(archivo_subido)
-        else:
-            return False, f"❌ Error: Formato de archivo no soportado. Sube un .csv o .xlsx"
-        
-        # --- B. PROCESAMIENTO CON PANDAS ---
-        # 
-        #   ¡AQUÍ PEGAS TU CÓDIGO DE PYTHON!
-        #
-        #   Usa el dataframe 'df' que acabamos de leer.
-        #   ... (Tu limpieza de datos)
-        #   ... (Tu llamada a la API del dólar MEP)
-        #   ... (Tus cálculos de nuevas columnas)
-        #
-        
-        # Al final, tu dataframe final debe llamarse 'df_procesado'
-        
-        # ----- INICIO DE ESPACIO PARA TU CÓDIGO -----
-        
-        # (Ejemplo - REEMPLAZA ESTO)
-        st.write("Procesando datos (lógica de ejemplo)...")
-        df_procesado = df.copy() # Usamos 'copy()' para evitar advertencias
-        df_procesado['procesado'] = True 
-        
-        # ----- FIN DE ESPACIO PARA TU CÓDIGO -----
-        
-        
-        # --- C. CONEXIÓN Y CARGA A SUPABASE (POSTGRESQL) ---
-        st.write("Conectando a la base de datos...")
-        
-        # ¡CRÍTICO! Cadena de conexión para Supabase (PostgreSQL)
-        # Incluye la solución ?sslmode=require que encontramos para Power BI
-        connection_string = f"postgresql://{db_user}:{db_pass}@{db_host}:5432/{db_name}?sslmode=require"
+        response = requests.get(api_url)
+        response.raise_for_status()
+        data = response.json()
 
-        engine = create_engine(connection_string)
+        df_dolar_api = pd.DataFrame(data)
 
-        st.write(f"Cargando datos en la tabla '{table_name}'...")
-        # Carga el dataframe a la base de datos usando los parámetros
-        df_procesado.to_sql(
+        # Extraer los valores de venta del Dolar Oficial y Dolar MEP
+        valor_oficial = df_dolar_api.loc[df_dolar_api['casa'] == 'oficial', 'venta'].values[0]
+        valor_mep = df_dolar_api.loc[df_dolar_api['casa'] == 'bolsa', 'venta'].values[0]
+
+        return valor_oficial, valor_mep
+
+    except Exception as e:
+        # MENSAJE DE ERROR EN CASO DE FALLA
+        print(f"Error al cargar valores de dólar: {e}")
+        return None, None
+
+## EJECUCIÓN DE LA FUNCIÓN
+dolar_oficial, dolar_mep = obtener_valores_dolar()
+
+## CALCULO DE TENENCIA TOTAL ACTUALIZADA EN USD (utilizando el tipo de cambio mas bajo)
+
+df_cedears["tenencia_usd"] = df_cedears.tenencia_ars / np.minimum(dolar_oficial, dolar_mep)
+
+## CÁLCULO DE GANANCIA O PERDIDA EN PESOS ARGENTINOS
+
+df_cedears["resultados_ars"] = df_cedears.tenencia_ars - df_cedears.costo_ars
+
+## CÁLCULO DE GANANCIA O PERDIDA EN DOLARES
+
+df_cedears["resultados_usd"] = df_cedears.tenencia_usd - df_cedears.costo_usd
+
+## CÁLCULO DE RENDIMIENTO PORCENTUAL EN PESOS ARGENTINOS
+
+df_cedears["rendimiento_ars"] = round((df_cedears.tenencia_ars / df_cedears.costo_ars - 1) * 100, 2)
+
+## CÁLCULO DE RENDIMIENTO PORCENTUAL EN DOLARES
+
+
+df_cedears["rendimiento_usd"] = round((df_cedears.tenencia_usd / df_cedears.costo_usd - 1) * 100, 2)
+
+## AGRUPACION DE ACCIONES Y TOTALES
+
+df_cedears_analisis = df_cedears[["ticker", "costo_ars","costo_usd","tenencia_ars",	"tenencia_usd", "resultados_ars",	"resultados_usd"]]
+
+df_cedears_agrupado = df_cedears_analisis.groupby("ticker").sum().round(2)
+
+df_cedears_agrupado["rendimiento_ars"] = df_cedears_agrupado["resultados_ars"] / df_cedears_agrupado["costo_ars"]
+df_cedears_agrupado["rendimiento_usd"] = df_cedears_agrupado["resultados_usd"] / df_cedears_agrupado["costo_usd"]
+
+df_cedears_agrupado.reset_index(inplace=True)
+
+## MODIFICACION DEL DATAFRAME PARA FILTRAR POR MONEDA
+
+
+# AÑADIR FECHA DE EJECUCIÓN
+df_cedears_agrupado['fecha_ejecucion'] = datetime.now().date()
+
+
+# MODIFICACIÓN PARA INCLUIR TIPO DE MONEDA
+try:
+    df_final_largo = pd.wide_to_long(
+        df_cedears_agrupado,
+
+        # PREFIJO DE COLUMNA
+        stubnames=['costo', 'tenencia', 'resultados', 'rendimiento'],
+
+        # COLUMNAS QUE NO DEBEN PIVOTARSE
+        i=['ticker', 'fecha_ejecucion'],
+
+        # CREACION DE COLUMNA POR TIPO DE MONEDA
+        j='moneda',
+
+        # CONECTOR ENTRE PREFIJO Y SUFIJO
+        sep='_',
+
+        # SUFIJO DE COLUMNA
+        suffix='(ars|usd)'
+    )
+
+    # RESET DE INDICES
+    df_final_listo = df_final_largo.reset_index()
+
+    print("\nEjecución exitosa")
+except Exception as e:
+    print(f"\nError: {e}")
+
+## DATOS DE CONEXION A SUPABASE (SQL)
+
+user = db_user
+password = db_pass
+database = db_name
+pooler_host = db_host
+pooler_port = '5432'
+
+## GUARDADO DE DF_CEDEARS CON PRIMARYKEY EN SUPABASE (SQL)
+
+# CONEXION A SQL
+
+connection_url = f'postgresql+psycopg2://{user}:{password}@{pooler_host}:{pooler_port}/{database}'
+
+try:
+    engine = create_engine(connection_url, poolclass=NullPool)
+
+    with engine.begin() as connection:
+
+        # ESTRUCTURA DE LA TABLA
+        metadata = MetaData()
+        table_name = 'cedears'
+
+        cedears_table = Table(
             table_name,
-            con=engine,
-            if_exists=upload_mode, # 'append' o 'replace'
+            metadata,
+            Column('id_operacion', Integer, primary_key=True, autoincrement=True),
+            Column('cantidad', Float),
+            Column('descripcion', Text),
+            Column('fecha', Date),
+            Column('fecha_descarga', Date),
+            Column('gastos', Float),
+            Column('moneda', String),
+            Column('precio_compra', Float),
+            Column('ticker', String),
+            Column('tipo', String),
+            Column('dolar_mep', Float),
+            Column('dolar_oficial', Float),
+            Column('costo_ars', Float),
+            Column('costo_usd', Float),
+            Column('tenencia_ars', Float),
+            Column('tenencia_usd', Float),
+            Column('resultados_ars', Float),
+            Column('resultados_usd', Float),
+            Column('rendimiento_ars', Float),
+            Column('rendimiento_usd', Float)
+        )
+
+        metadata.create_all(engine)
+        print(f"Tabla '{table_name}' creada.")
+
+        # ELIMINACION DE DATOS
+        connection.execute(text(f"TRUNCATE TABLE {table_name} RESTART IDENTITY;"))
+
+        # INSERCIÓN DE DATOS
+        df_cedears.to_sql(
+            table_name,
+            connection,
+            if_exists='append',
             index=False
         )
 
-        return True, f"¡Éxito! Se cargaron {len(df_procesado)} filas en la tabla '{table_name}'."
+        print(f"Carga de datos exitosa")
 
-    except Exception as e:
-        # Si algo falla, devuelve el error
-        st.error(f"Error detallado: {e}") # Añadimos más detalle al error
-        return False, f"❌ Error: {e}"
+except Exception as e:
+    print(f"ERROR: {e}")
+
+## GUARDADO DE DATOS HISTORICOS
+
+# CONEXION A SQL
+
+connection_url = f'postgresql+psycopg2://{user}:{password}@{pooler_host}:{pooler_port}/{database}'
+
+try:
+    engine = create_engine(connection_url)
+    # Removed: connection = engine.connect() to allow metadata.drop_all to work correctly
+
+    # ESTRUCTURA DE LA TABLA
+
+    metadata = MetaData()
+    table_name = 'datos_historicos_cedears'
+
+    historico_table = Table(
+        table_name,
+        metadata,
+        Column('ticker', String, primary_key=True),
+        Column('fecha_ejecucion', Date, primary_key=True),
+        Column('moneda', String, primary_key=True),
+        Column('costo', Float),
+        Column('tenencia', Float),
+        Column('resultados', Float),
+        Column('rendimiento', Float)
+    )
+
+    # Drop and recreate the table to ensure schema is updated
+    metadata.drop_all(engine) # Added: Drop existing table
+    metadata.create_all(engine)
+    print(f"Tabla '{table_name}' recreada con el esquema actualizado")
+
+    with engine.connect() as connection:
+        # INSERCIÓN DE DATOS
+
+        try:
+            if 'df_final_listo' not in locals():
+                print("No existe df_final_listo")
+
+            else:
+                df_final_listo.to_sql(
+                    table_name,
+                    connection,
+                    if_exists='append',
+                    index=False
+                )
+                print(f"Carga de datos exitosa")
+
+        except Exception as ex:
+
+          # COMPROBACIÓN DE DATOS DUPLICADOS
+            if "violates unique constraint" in str(ex) or "duplicate key value" in str(ex):
+                print(f"Datos ya cargados el día de hoy")
+            else:
+                print(f"Error: {ex}")
+
+        finally:
+            # CIERRE DE CONEXION is handled by 'with engine.connect() as connection:'
+            pass
+
+except Exception as e:
+    print(f"Error: {e}")
 
 # -----------------------------------------------------------------
 # 2. LA INTERFAZ WEB (EL FRONT-END)
 # -----------------------------------------------------------------
 st.set_page_config(layout="centered", page_title="Cargador de Datos")
-st.title("🤖 Cargador de Datos a Supabase")
+st.title("Análisis de inversiones")
 
 st.write("Sube tu reporte de Balanz y completa los datos de tu Base de Datos de Supabase (PostgreSQL).")
 
@@ -133,3 +356,4 @@ if submit_button:
             
     else:
         st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
