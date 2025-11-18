@@ -133,7 +133,7 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
                 # PREFIJO DE COLUMNA
                 stubnames=['costo', 'tenencia', 'resultados', 'rendimiento'],
                 # COLUMNAS QUE NO DEBEN PIVOTARSE
-                i=['ticker', 'fecha_ejecucion'],
+                i=['ticker', 'cantidad', 'fecha_ejecucion'],
                 # CREACION DE COLUMNA POR TIPO DE MONEDA
                 j='moneda',
                 # CONECTOR ENTRE PREFIJO Y SUFIJO
@@ -365,6 +365,7 @@ if submit_button:
     else:
         # Si faltan campos
         st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
 
 
 
