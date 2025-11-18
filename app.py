@@ -279,7 +279,7 @@ st.write("El reporte a utilizar corresponde a 'Resultados del periodo' e informe
 with st.form(key="upload_form"):
     
     # A. El cargador de archivos
-    uploaded_file = st.file_uploader("1. Sube tu archivo (Excel)", type=["xlsx", "xls"])
+    uploaded_file = st.file_uploader("1. Sube tu archivo (Excel)", type=["xlsx"])
     
     st.divider()
     
@@ -358,6 +358,7 @@ if submit_button:
     else:
         # Si faltan campos
         st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
 
 
 
