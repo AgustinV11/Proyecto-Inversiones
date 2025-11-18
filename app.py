@@ -251,9 +251,18 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
         return True, "¡Proceso completado con éxito!"
 
     except Exception as e:
-        # Si algo falló en cualquier punto
-        st.error(f"Error detallado: {e}")
-        return False, f"Error general en el procesamiento: {e}"
+        error_message = str(e).lower() 
+        
+        if "authentication failed" in error_message or "connection to server" in error_message or "duplicate sasl authentication" in error_message:
+            
+            return False, "❌ ¡Error de conexión! Revisa tu Host, Usuario, Contraseña y Nombre de Base de Datos."
+        
+        elif "relation" in error_message and "does not exist" in error_message:
+            return False, f"❌ Error de Base de Datos: Una de las tablas no existe. (Detalle: {e})"
+            
+        else:
+            st.error(f"Error detallado: {e}")
+            return False, f"Error general en el procesamiento: {e}"
 
 # -----------------------------------------------------------------
 # 2. LA INTERFAZ WEB (EL FRONT-END)
@@ -345,6 +354,7 @@ if submit_button:
     else:
         # Si faltan campos
         st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
 
 
 
