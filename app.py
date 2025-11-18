@@ -131,7 +131,6 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
             )
             # RESET DE INDICES
             df_final_listo = df_final_largo.reset_index()
-            st.write("Pivoteo de datos exitoso.")
         except Exception as e:
             st.error(f"Error en wide_to_long: {e}")
             raise e
@@ -385,6 +384,7 @@ if uploaded_file is not None and db_host and db_name and db_user and db_pass:
         
 else:
     st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
 
 
 
