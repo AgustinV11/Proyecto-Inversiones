@@ -8,6 +8,11 @@ from datetime import datetime
 from sqlalchemy import create_engine, MetaData, Table, Column, String, Date, Float, Integer, Text, text, PrimaryKeyConstraint
 from sqlalchemy.pool import NullPool
 
+if 'procesamiento_listo' not in st.session_state:
+    st.session_state.procesamiento_listo = False
+if 'ultimo_mensaje' not in st.session_state:
+    st.session_state.ultimo_mensaje = ""
+
 def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass):
     try:
         ##IMPORTACION DE BASE DE DATOS
@@ -285,6 +290,8 @@ with st.form(key="upload_form"):
 
 # --- Lógica de Procesamiento (se ejecuta al apretar el botón) ---
 if submit_button:
+
+    st.session_state.procesamiento_listo = False
     
     # Verificamos que todos los campos estén completos
     if uploaded_file is not None and db_host and db_name and db_user and db_pass:
@@ -303,6 +310,8 @@ if submit_button:
         
         # Muestra el resultado
         if exito:
+            st.session_state.procesamiento_listo = True
+            st.session_state.ultimo_mensaje = mensaje
             st.success(mensaje)
             
             # --- 3. BOTÓN DE DESCARGA DE POWER BI ---
@@ -327,6 +336,7 @@ if submit_button:
             else:
                 st.error(f"Error de configuración: No se encontró el archivo '{template_file_name}' en el servidor.")
                 st.warning("Asegúrate de haber subido el archivo .pbit a la carpeta de la aplicación.")
+                st.session_state.procesamiento_listo = False
                 
         else:
             # Si 'exito' es False, muestra el mensaje de error
@@ -336,52 +346,8 @@ if submit_button:
         # Si faltan campos
         st.warning("Por favor, completa TODOS los campos y sube un archivo.")
 
-# Verificamos que todos los campos estén completos
-if uploaded_file is not None and db_host and db_name and db_user and db_pass:
-    
-    # Muestra el "spinner" mientras la función se ejecuta
-    with st.spinner('Procesando archivo y conectando a Supabase... Esto puede tardar varios segundos...'):
-        
-        # Llama a tu función de lógica
-        exito, mensaje = procesar_y_guardar_en_sql(
-            uploaded_file, 
-            db_host, 
-            db_name, 
-            db_user, 
-            db_pass
-        )
-    
-    # Muestra el resultado
-    if exito:
-        st.success(mensaje)
-        
-        # --- 3. BOTÓN DE DESCARGA DE POWER BI ---
-        st.subheader("¡Tus datos están listos!")
-        st.write("Descarga tu plantilla de Power BI. Ábrela, introduce tus credenciales de Supabase y haz clic en 'Actualizar'.")
-        
-        # Nombre de tu plantilla. DEBE estar en la misma carpeta que este script.
-        template_file_name = "Plantilla_PowerBI.pbit" 
-        
-        if os.path.exists(template_file_name):
-            with open(template_file_name, "rb") as f:
-                file_data = f.read()
-            
-            st.download_button(
-                label="📥 Descargar Plantilla de Power BI (.pbit)",
-                data=file_data,
-                file_name=template_file_name,
-                mime="application/vnd.ms-powerbi.template",
-                use_container_width=True
-            )
-        else:
-            st.error(f"Error de configuración: No se encontró '{template_file_name}'.")
-            st.warning("Asegúrate de haber subido el archivo .pbit a la carpeta de la aplicación.")
-            
-    else:
-        st.error(mensaje)
-        
-else:
-    st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
+
 
 
 
