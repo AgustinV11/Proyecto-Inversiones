@@ -11,10 +11,8 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
     try:
         ##IMPORTACION DE BASE DE DATOS
         st.write(f"Leyendo archivo: {archivo_subido.name}...")
-        if archivo_subido.name.endswith('.csv'):
-            df = pd.read_csv(archivo_subido)
-        elif archivo_subido.name.endswith(('.xls', '.xlsx')):
-            df = pd.read_excel(archivo_subido)
+        if archivo_subido.name.endswith(('.xls', '.xlsx')):
+            df = pd.read_excel(archivo_subido, sheet_name="resultados_por_lotes_finales")
         else:
             st.error("Error: Formato de archivo no soportado.")
             return False, "Error de archivo"
@@ -260,13 +258,13 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
 # -----------------------------------------------------------------
 st.set_page_config(layout="centered", page_title="Análisis de inversiones")
 st.title("💰 Análisis de inversiones")
-st.write("Sube tu reporte del broker y completa los datos de tu Base de Datos de Supabase (PostgreSQL).")
+st.write("Sube tu reporte de Balanz y completa los datos de tu Base de Datos de Supabase (PostgreSQL).")
 
 # --- Formulario de Carga ---
 with st.form(key="upload_form"):
     
     # A. El cargador de archivos
-    uploaded_file = st.file_uploader("1. Sube tu archivo (CSV o Excel)", type=["csv", "xlsx", "xls"])
+    uploaded_file = st.file_uploader("1. Sube tu archivo (Excel)", type=["xlsx", "xls"])
     
     st.divider()
     
@@ -387,6 +385,7 @@ if uploaded_file is not None and db_host and db_name and db_user and db_pass:
         
 else:
     st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
 
 
 
