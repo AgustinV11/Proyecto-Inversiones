@@ -258,10 +258,9 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
 # -----------------------------------------------------------------
 # 2. LA INTERFAZ WEB (EL FRONT-END)
 # -----------------------------------------------------------------
-st.set_page_config(layout="centered", page_title="Cargador de Datos")
+st.set_page_config(layout="centered", page_title="Análisis de inversiones")
 st.title("💰 Análisis de inversiones")
-st.image("https://placehold.co/800x200/4B4B4B/FFFFFF?text=Analizador+de+Inversiones&font=roboto", use_column_width=True) # Banner
-st.write("Sube tu reporte del broker y completa los datos de tu Base de Datos de Supabase (PostgreSQL). El proceso tomará los datos, los procesará y los cargará en tu base de datos.")
+st.write("Sube tu reporte del broker y completa los datos de tu Base de Datos de Supabase (PostgreSQL).)
 
 # --- Formulario de Carga ---
 with st.form(key="upload_form"):
@@ -388,6 +387,7 @@ if uploaded_file is not None and db_host and db_name and db_user and db_pass:
         
 else:
     st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
 
 
 
