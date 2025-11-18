@@ -103,7 +103,6 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
         df_cedears["rendimiento_usd"] = round((df_cedears.tenencia_usd / df_cedears.costo_usd - 1) * 100, 2)
 
         ## AGRUPACION DE ACCIONES Y TOTALES
-        st.write("Agrupando datos...")
         df_cedears_analisis = df_cedears[["ticker", "costo_ars","costo_usd","tenencia_ars",	"tenencia_usd", "resultados_ars",	"resultados_usd"]]
         df_cedears_agrupado = df_cedears_analisis.groupby("ticker").sum().round(2)
         df_cedears_agrupado["rendimiento_ars"] = df_cedears_agrupado["resultados_ars"] / df_cedears_agrupado["costo_ars"]
@@ -178,7 +177,7 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
                     Column('rendimiento_usd', Float)
                 )
                 metadata.create_all(engine)
-                st.write(f"Tabla '{table_name}' asegurada.")
+                st.write(f"Tabla '{table_name}' creada.")
 
                 # ELIMINACION DE DATOS
                 connection.execute(text(f"TRUNCATE TABLE {table_name} RESTART IDENTITY;"))
@@ -217,7 +216,7 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
             # Drop and recreate the table to ensure schema is updated
             metadata_hist.drop_all(engine_hist)
             metadata_hist.create_all(engine_hist)
-            st.write(f"Tabla '{table_name_hist}' recreada.")
+            st.write(f"Tabla '{table_name_hist}' creada.")
 
             with engine_hist.connect() as connection:
                 # INSERCIÓN DE DATOS
@@ -384,6 +383,7 @@ if uploaded_file is not None and db_host and db_name and db_user and db_pass:
         
 else:
     st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
 
 
 
