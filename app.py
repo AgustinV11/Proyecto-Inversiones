@@ -195,7 +195,6 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
                     index=False
                 )
         except Exception as e:
-            st.error(f"ERROR en la carga de 'cedears': {e}")
             raise e
 
         ## GUARDADO DE DATOS HISTORICOS
@@ -240,11 +239,9 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
                     if "violates unique constraint" in str(ex) or "duplicate key value" in str(ex):
                         st.warning(f"Advertencia: Datos ya cargados el día de hoy en '{table_name_hist}'.")
                     else:
-                        st.error(f"Error en carga de datos históricos: {ex}")
                         raise ex
         
         except Exception as e:
-            st.error(f"ERROR en la carga de 'datos_historicos_cedears': {e}")
             raise e
         
         # Si todo salió bien
@@ -354,6 +351,7 @@ if submit_button:
     else:
         # Si faltan campos
         st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
 
 
 
