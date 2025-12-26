@@ -132,34 +132,36 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
        ## OBTENCION DE COTIZACION ACTUALIZADA
         total_tickers = len(tickers_unicos)
         
-        try:
-            # 1. DESCARGA MASIVA (Usando tu línea de la imagen cbf762)
-            cotizacion_descargada = yf.download(tickers_yf, period="1d", group_by="ticker", threads=True)
-        
+       try:
+    # 1. DESCARGA MASIVA SIMPLE (Sin group_by para que sea una tabla plana)
+    # Pedimos el periodo de 1 día para que traiga solo lo último
+    datos_descargados = yf.download(tickers_yf, period="1d")['Close']
+
             for i, ticker in enumerate(tickers_unicos):
+                ticker_argentina = f"{ticker}.BA"
                 
                 try:
-                    # 2. ACCESO AL DATO (Usando tu variable cotizacion_descargada)
-                    # Si hay más de un ticker, buscamos en el sub-nivel del ticker
-                    if total_tickers > 1:
-                        precio = cotizacion_descargada[tickers_yf]['Close'].iloc[-1]
+                    # 2. ACCESO DIRECTO
+                    # Buscamos la columna del ticker y tomamos el último valor no nulo
+                    if ticker_argentina in datos_descargados.columns:
+                        # .ffill() completa huecos y .iloc[-1] toma el último
+                        precio = datos_descargados[ticker_argentina].ffill().iloc[-1]
+                        cotizacion_actual[ticker] = precio
                     else:
-                        # Si por alguna razón solo hay uno, la estructura es más simple
-                        precio = cotizacion_descargada['Close'].iloc[-1]
-                    
-                    # 3. GUARDADO: Usamos el nombre limpio para tu diccionario final
-                    cotizacion_actual[ticker] = precio
+                        # Si no está en la tabla, intentamos el método rápido individual
+                        ticker_obj = yf.Ticker(ticker_argentina)
+                        cotizacion_actual[ticker] = ticker_obj.fast_info['last_price']
         
-                except Exception as e:
-                    st.warning(f"Error al procesar datos descargados de {ticker}: {e}")
-                    error_cotizaciones = True
+                except Exception:
+                    # Si falla todo, le asignamos 0 o None para que no se trabe el código
+                    cotizacion_actual[ticker] = 0.0
         
                 # ACTUALIZACION DE BARRA DE PROGRESO
                 avance = (i + 1) / total_tickers
-                barra_progreso.progress(0.10 + (avance * 0.60), text=f"Cotización de {ticker} ({i+1}/{total_tickers})")
+                barra_progreso.progress(0.10 + (avance * 0.60), text=f"Procesando {ticker}...")
         
-        except Exception as e:
-            st.error(f"Error crítico en la descarga masiva: {e}")
+            except Exception as e:
+            st.error(f"Error crítico: {e}")
             error_cotizaciones = True
         
         if error_cotizaciones:
