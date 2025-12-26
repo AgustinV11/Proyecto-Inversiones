@@ -118,6 +118,7 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
         
         ## LISTA UNICA DE ACCIONES
         tickers_unicos = df_cedears.ticker.unique()
+        tickers_yf = [f"{t}.BA" for t in tickers_unicos]
 
         ## CREACIÓN DE DICCIONARIO PARA LA COTIZACION ACTUAL
         cotizacion_actual = {}
@@ -562,6 +563,7 @@ if submit_button:
             
     else:
         st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
 
 
 
