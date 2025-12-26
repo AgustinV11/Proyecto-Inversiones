@@ -134,7 +134,7 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
         
         try:
             # 1. DESCARGA MASIVA (Usando tu línea de la imagen cbf762)
-            cotizacion_descargada = yf.download(tickers_yf, period="1d", interval="1m", group_by="ticker", threads=True)
+            cotizacion_descargada = yf.download(tickers_yf, period="1d", group_by="ticker", threads=True)
         
             for i, ticker in enumerate(tickers_unicos):
                 
@@ -561,6 +561,7 @@ if submit_button:
             
     else:
         st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
 
 
 
