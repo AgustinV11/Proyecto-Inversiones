@@ -137,14 +137,12 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
             cotizacion_descargada = yf.download(tickers_yf, period="1d", interval="1m", group_by="ticker", threads=True)
         
             for i, ticker in enumerate(tickers_unicos):
-                # Definimos el nombre con el que se guardó en el DataFrame (ticker + .BA)
-                ticker_argentina = ticker + ".BA"
                 
                 try:
                     # 2. ACCESO AL DATO (Usando tu variable cotizacion_descargada)
                     # Si hay más de un ticker, buscamos en el sub-nivel del ticker
                     if total_tickers > 1:
-                        precio = cotizacion_descargada[ticker_argentina]['Close'].iloc[-1]
+                        precio = cotizacion_descargada[tickers_yf]['Close'].iloc[-1]
                     else:
                         # Si por alguna razón solo hay uno, la estructura es más simple
                         precio = cotizacion_descargada['Close'].iloc[-1]
@@ -563,6 +561,7 @@ if submit_button:
             
     else:
         st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
 
 
 
