@@ -20,12 +20,12 @@ def mostrar_instructivo():
     **1. Ingresa a Balanz**
     Inicia sesión en tu cuenta desde la web.
     """)
-    st.image("res Folder/paso1.png", use_container_width=True)
+    st.image("resFolder/paso1.png", use_container_width=True)
 
     st.markdown("""
     **2. Ve a la sección de Reportes**
     """)
-    st.image("res Folder/paso2.png", use_container_width=True)
+    st.image("resFolder/paso2.png", use_container_width=True)
     
     st.markdown("""
     **3. Configura el reporte**
@@ -34,8 +34,8 @@ def mostrar_instructivo():
     * **Período:** Selecciona el rango de fechas (ej. Desde el inicio de tus inversiones hasta hoy).
     * **Informe:** COMPLETO.
     """)
-    st.image("res Folder/paso3.png", use_container_width=True)
-    st.image("res Folder/paso4.png", use_container_width=True)
+    st.image("resFolder/paso3.png", use_container_width=True)
+    st.image("resFolder/paso4.png", use_container_width=True)
 
     st.markdown("""
     **4. Descargar**
@@ -405,7 +405,7 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
 
 ## ------------------------------------------------------------------------------------------------------------------------------------------------------
 ## CREACIÓN DEL FRONTEND PARA LA PAGINA WEB
-st.image("res Folder/logo.png", use_container_width=True)
+st.image("resFolder/logo.png", use_container_width=True)
 st.set_page_config(layout="centered", page_title="Análisis de inversiones")
 st.title("💰 Análisis de inversiones")
 st.write("Sube tu reporte de Balanz y completa los datos de tu Base de Datos de Supabase (PostgreSQL).")
@@ -434,15 +434,15 @@ with st.form(key="upload_form"):
         2. Entra a tu proyecto.
         3. Ve al botón "Connect" que se encuentra en la parte superior de la pantalla:
         """)
-        st.image("res Folder/captura_supabase.png", use_container_width=True)
+        st.image("resFolder/captura_supabase.png", use_container_width=True)
         st.write("""
         4. Selecciona el Method "Session pooler":
         """)
-        st.image("res Folder/captura_supabase_2.png", use_container_width=True)
+        st.image("resFolder/captura_supabase_2.png", use_container_width=True)
         st.write("""
         5. Abre la opción "View parameters":
         """)
-        st.image("res Folder/captura_supabase_3.png", use_container_width=True)
+        st.image("resFolder/captura_supabase_3.png", use_container_width=True)
         st.write("""
         6. Ahí encontrarás el **Host**, **Database name** y **User**.
         7. *Nota: La contraseña es la que creaste al iniciar el proyecto. Para modificarla podes ingresar a "Database Settings" desde la parte inferior de la pantalla.*
@@ -462,23 +462,23 @@ with st.form(key="upload_form"):
         st.write("""
         1. En caso de presentar el siguiente error deberás seguir los pasos detallados a continuación:
         """)
-        st.image("res Folder/error1.png", use_container_width=True)
+        st.image("resFolder/error1.png", use_container_width=True)
         st.write("""
         2. Ingresa a "Archivo", "Opciones y Configuración", y posteriormente a "Configuración de origen de datos":
         """)
-        st.image("res Folder/error2.png", use_container_width=True)
+        st.image("resFolder/error2.png", use_container_width=True)
         st.write("""
         3. Selecciona "Editar permisos":
         """)
-        st.image("res Folder/error3.png", use_container_width=True)
+        st.image("resFolder/error3.png", use_container_width=True)
         st.write("""
         4. Destilda la opción "Cifrar conexiones":
         """)
-        st.image("res Folder/error4.png", use_container_width=True)
+        st.image("resFolder/error4.png", use_container_width=True)
         st.write("""
         5. Por último, selecciona "Actualizar" en la pantalla de Inicio para obtener los datos:
         """)
-        st.image("res Folder/error5.png", use_container_width=True)
+        st.image("resFolder/error5.png", use_container_width=True)
 
 
     st.divider()
@@ -533,7 +533,7 @@ if submit_button:
             ## BOTÓN DE DESCARGA DEL INFORME DE POWER BI
             st.subheader("¡Tus datos están listos!")
             st.write("El siguiente paso es descargar tu plantilla de Power BI. Ábrela, introduce tus credenciales de Supabase (las mismas que usaste aquí) y haz clic en 'Actualizar'.")
-            template_file_name = "res Folder/Reporte de inversiones - Power BI.pbit" 
+            template_file_name = "resFolder/Reporte de inversiones - Power BI.pbit" 
             with open(template_file_name, "rb") as f:
                 file_data = f.read()
             st.download_button(
@@ -552,6 +552,7 @@ if submit_button:
             
     else:
         st.warning("Por favor, completa TODOS los campos y sube un archivo.")
+
 
 
 
