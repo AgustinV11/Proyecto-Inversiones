@@ -66,7 +66,11 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
         for dff in [df_cedears, df_on]:
             dff.fecha = pd.to_datetime(dff.fecha)
             dff.fecha_descarga = pd.to_datetime(dff.fecha_descarga)
-            
+
+             # 4. DOLAR Y CÁLCULOS
+            d_oficial, d_mep = obtener_valores_dolar()
+            min_d = np.minimum(d_oficial, d_mep)
+
             # Definimos el Tipo de Cambio Histórico para la pesificación
             tc_historico = np.where(dff.fecha < pd.to_datetime("2025-04-15"), dff.dolar_mep, min_d)
             
@@ -95,10 +99,7 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
         for t in df_on.ticker.unique():
             if t in cotizaciones_raw: cotizacion_actual[t] = cotizaciones_raw[t] / 100
 
-        # 4. DOLAR Y CÁLCULOS
-        d_oficial, d_mep = obtener_valores_dolar()
-        min_d = np.minimum(d_oficial, d_mep)
-
+       
         # Lógica de costos y tenencia
         for dff in [df_cedears, df_on]:
             # 1. Tenencia actualizada (Valuación de mercado a hoy)
@@ -143,6 +144,7 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
         # 7. GUARDADO EN SUPABASE (CON DEFINICIÓN DE TABLAS)
         connection_url = f'postgresql+psycopg2://{db_user}:{db_pass}@{db_host}:5432/{db_name}?sslmode=require'
         engine = create_engine(connection_url, poolclass=NullPool)
+        
         metadata = MetaData()
 
         # Definición de tablas históricas con Primary Key Compuesta (Tu original)
