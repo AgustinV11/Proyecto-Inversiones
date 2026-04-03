@@ -66,7 +66,18 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
         for dff in [df_cedears, df_on]:
             dff.fecha = pd.to_datetime(dff.fecha)
             dff.fecha_descarga = pd.to_datetime(dff.fecha_descarga)
-            dff["costo_ars"] = (dff.cantidad * dff.precio_compra) + dff.gastos
+            
+            # Definimos el Tipo de Cambio Histórico para la pesificación
+            tc_historico = np.where(dff.fecha < pd.to_datetime("2025-04-15"), dff.dolar_mep, min_d)
+            
+            # Lógica de COSTO_ARS:
+            # - Si es 'Dólares': (Cantidad * Precio_Compra * TC_Historico) + Gastos
+            # - Si es 'Pesos': (Cantidad * Precio_Compra) + Gastos
+            dff["costo_ars"] = np.where(
+                dff["moneda"] == "Dólares",
+                (dff["cantidad"] * dff["precio_compra"] * tc_historico) + dff["gastos"],
+                (dff["cantidad"] * dff["precio_compra"]) + dff["gastos"]
+            )
 
         # 3. COTIZACIONES IOL
         headers = obtener_headers_iol()
@@ -90,14 +101,28 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
 
         # Lógica de costos y tenencia
         for dff in [df_cedears, df_on]:
+            # 1. Tenencia actualizada (Valuación de mercado a hoy)
             dff["tenencia_ars"] = (dff.cantidad * dff.ticker.map(cotizacion_actual).fillna(0)) * 0.994
             dff["tenencia_usd"] = dff.tenencia_ars / min_d
-            dff["costo_usd"] = np.where(dff.fecha < pd.to_datetime("2025-04-15"), dff.costo_ars / dff.dolar_mep, dff.costo_ars / min_d)
+            
+            # 2. Tipo de Cambio Histórico (Según tu regla de la fecha de abril)
+            tc_historico = np.where(dff.fecha < pd.to_datetime("2025-04-15"), dff.dolar_mep, min_d)
+            
+            # 3. Lógica de Costo USD (Diferenciando Pesos vs Dólares)
+            # - Si es 'Dólares': (Cantidad * Precio_Compra) + (Gastos / TC_Historico)
+            # - Si es 'Pesos': (Costo_ARS) / TC_Historico
+            dff["costo_usd"] = np.where(
+                dff["moneda"] == "Dólares",
+                (dff["cantidad"] * dff["precio_compra"]) + (dff["gastos"] / tc_historico),
+                dff["costo_ars"] / tc_historico
+            )
+            
+            # 4. Resultados y Rendimientos
             dff["resultados_ars"] = dff.tenencia_ars - dff.costo_ars
             dff["resultados_usd"] = dff.tenencia_usd - dff.costo_usd
             dff["rendimiento_ars"] = round((dff.tenencia_ars / dff.costo_ars - 1) * 100, 2)
             dff["rendimiento_usd"] = round((dff.tenencia_usd / dff.costo_usd - 1) * 100, 2)
-
+            
         # 5. PREPARACIÓN DE HISTÓRICOS (Wide to Long)
         def preparar_historico(df_input):
             agrup = df_input.groupby("ticker").agg({"cantidad":"sum", "costo_ars":"sum", "costo_usd":"sum", "tenencia_ars":"sum", "tenencia_usd":"sum", "resultados_ars":"sum", "resultados_usd":"sum"}).reset_index()
