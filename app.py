@@ -9,24 +9,14 @@ from sqlalchemy import create_engine, MetaData, Table, Column, String, Date, Flo
 from sqlalchemy.pool import NullPool
 
 # ==========================================
-# 1. CONFIGURACIÓN API IOL (SEGURIDAD)
+# 1. CONFIGURACIÓN API IOL (SECRETS)
 # ==========================================
 try:
     USUARIO_IOL = st.secrets["iol"]["usuario"]
     PASSWORD_IOL = st.secrets["iol"]["password"]
 except Exception:
-    st.error("❌ Error: No se encontraron las credenciales 'iol' en los Secrets de Streamlit.")
+    st.error("❌ Error: No se encontraron los Secrets 'iol' configurados.")
     st.stop()
-
-## INSTRUCTIVO PARA DESCARGAR REPORTE DE BALANZ
-@st.dialog("📥 Cómo descargar el reporte de Balanz")
-def mostrar_instructivo():
-    st.markdown("""
-    Sigue estos pasos para obtener el reporte de Balanz:
-    1. Ingresa a Balanz y ve a **Reportes > Resultados del período**.
-    2. Período: Selecciona desde el inicio. Informe: **COMPLETO**.
-    3. Descarga el archivo `.xlsx`.
-    """)
 
 # --- FUNCIONES DE APOYO ---
 def obtener_headers():
@@ -36,7 +26,7 @@ def obtener_headers():
         response = requests.post(url_token, data=data_token)
         response.raise_for_status()
         return {'Authorization': f"Bearer {response.json().get('access_token')}"}
-    except Exception as e:
+    except:
         return None
 
 def obtener_valores_dolar():
@@ -44,10 +34,10 @@ def obtener_valores_dolar():
     try:
         response = requests.get(api_url)
         data = response.json()
-        df_dolar = pd.DataFrame(data)
-        oficial = df_dolar.loc[df_dolar['casa'] == 'oficial', 'venta'].values[0]
-        mep = df_dolar.loc[df_dolar['casa'] == 'bolsa', 'venta'].values[0]
-        return oficial, mep
+        df_dolar_api = pd.DataFrame(data)
+        valor_oficial = df_dolar_api.loc[df_dolar_api['casa'] == 'oficial', 'venta'].values[0]
+        valor_mep = df_dolar_api.loc[df_dolar_api['casa'] == 'bolsa', 'venta'].values[0]
+        return valor_oficial, valor_mep
     except:
         return None, None
 
@@ -56,11 +46,14 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
     try:
         barra_progreso = st.progress(0, text="Iniciando procesamiento...")
         
-        # 1. CARGA DE DATOS (Balanz)
+        # 1. IMPORTACION DESDE STREAMLIT (reemplaza /content/)
         df = pd.read_excel(archivo_subido, sheet_name="resultados_por_lotes_finales")
-        df.rename(columns = {"Cantidad": "cantidad", "Descripcion": "descripcion", "Fecha": "fecha", "Fecha Lote": "fecha_descarga", "Gastos": "gastos", "Moneda": "moneda", "Operacion": "operacion", "Precio Compra": "precio_compra", "Ticker": "ticker", "Tipo": "tipo", "DolarCCL": "dolar_ccl", "DolarMEP": "dolar_mep", "DolarOficial": "dolar_oficial"}, inplace = True)
         
-        # 2. SEPARACIÓN Y FILTROS
+        # 2. RENOMBRAR Y LIMPIAR
+        df.rename(columns = {"Cantidad": "cantidad", "Descripcion": "descripcion", "Fecha": "fecha", "Fecha Lote": "fecha_descarga", "Gastos": "gastos", "Moneda": "moneda", "Operacion": "operacion", "Precio Compra": "precio_compra", "Ticker": "ticker", "Tipo": "tipo", "DolarCCL": "dolar_ccl", "DolarMEP": "dolar_mep", "DolarOficial": "dolar_oficial"}, inplace = True)
+        df.drop(["dolar_ccl", "operacion"], axis=1, inplace=True, errors='ignore')
+
+        # 3. FILTROS Y COSTOS (CEDEARs y ON)
         df_cedears = df[df.tipo == "Cedears"].copy()
         df_on = df[df.tipo == "Corporativos - Dólar"].copy()
         
@@ -69,9 +62,9 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
             dff.fecha_descarga = pd.to_datetime(dff.fecha_descarga)
             dff["costo_ars"] = (dff.cantidad * dff.precio_compra) + dff.gastos
 
-        # 3. OBTENCIÓN DE COTIZACIONES (IOL)
+        # 4. COTIZACIONES IOL
         headers = obtener_headers()
-        if not headers: return False, "Error de autenticación IOL. Revisa tus Secrets."
+        if not headers: return False, "Error de autenticación en IOL."
         
         cotizaciones_raw = {}
         rutas = [
@@ -85,44 +78,50 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
                 for t in res.json().get('titulos', []):
                     cotizaciones_raw[t['simbolo'].strip()] = t['ultimoPrecio']
 
-        # 4. NORMALIZACIÓN DE PRECIOS (Dividido 100 para ON)
+        # 5. NORMALIZACIÓN (Cedears 1:1, ON / 100)
         cotizaciones_actuales = {}
         for t in df_cedears.ticker.unique():
             if t in cotizaciones_raw: cotizaciones_actuales[t] = cotizaciones_raw[t]
         for t in df_on.ticker.unique():
             if t in cotizaciones_raw: cotizaciones_actuales[t] = cotizaciones_raw[t] / 100
 
-        # 5. VALORES DE DÓLAR
+        # 6. CÁLCULOS DE TENENCIA Y RENDIMIENTO
         dolar_oficial, dolar_mep = obtener_valores_dolar()
         min_dolar = np.minimum(dolar_oficial, dolar_mep)
 
-        # 6. PROCESAMIENTO CEDEARS (Histórico)
-        df_cedears["tenencia_ars"] = (df_cedears.cantidad * df_cedears.ticker.map(cotizaciones_actuales)) * 0.994
+        # Cálculo Cedears
+        df_cedears["tenencia_ars"] = (df_cedears.cantidad * df_cedears.ticker.map(cotizaciones_actuales)) * (1-0.006)
+        df_cedears["tenencia_usd"] = df_cedears.tenencia_ars / min_dolar
+        df_cedears["costo_usd"] = np.where(df_cedears.fecha < pd.to_datetime("2025-04-15"), df_cedears.costo_ars / df_cedears.dolar_mep, df_cedears.costo_ars / np.minimum(df_cedears.dolar_oficial, df_cedears.dolar_mep))
+        
+        # Procesamiento Histórico Cedears
         df_ced_agrup = df_cedears.groupby("ticker").sum(numeric_only=True).reset_index()
         df_ced_agrup['fecha_ejecucion'] = date.today()
         df_final_listo = pd.wide_to_long(df_ced_agrup, stubnames=['costo', 'tenencia'], i=['ticker', 'fecha_ejecucion'], j='moneda', sep='_', suffix='(ars|usd)').reset_index()
 
-        # 7. PROCESAMIENTO ON (Histórico)
-        df_on["tenencia_ars"] = (df_on.cantidad * df_on.ticker.map(cotizaciones_actuales)) * 0.994
+        # Cálculo ON
+        df_on["tenencia_ars"] = (df_on.cantidad * df_on.ticker.map(cotizaciones_actuales)) * (1-0.006)
+        df_on["tenencia_usd"] = df_on.tenencia_ars / min_dolar
+        df_on["costo_usd"] = np.where(df_on.fecha < pd.to_datetime("2025-04-15"), df_on.costo_ars / df_on.dolar_mep, df_on.costo_ars / np.minimum(df_on.dolar_oficial, df_on.dolar_mep))
+        
+        # Procesamiento Histórico ON
         df_on_agrup = df_on.groupby("ticker").sum(numeric_only=True).reset_index()
         df_on_agrup['fecha_ejecucion'] = date.today()
         df_on_final_listo = pd.wide_to_long(df_on_agrup, stubnames=['costo', 'tenencia'], i=['ticker', 'fecha_ejecucion'], j='moneda', sep='_', suffix='(ars|usd)').reset_index()
 
-        # 8. CÁLCULO DE CUPONES/DIVIDENDOS
+        # 7. CÁLCULO CUPONES (Sheet: resultados_por_realizado)
         df_c = pd.read_excel(archivo_subido, sheet_name="resultados_por_realizado")
-        df_c = df_c[(df_c["Tipo Movimiento"].isin(["Cupón", "Dividendo"])) & (df_c["Tipo"].isin(["Corporativos - Dólar", "Cedears"]))]
-        df_c["CuponUSD"] = np.where(df_c["Tipo"] == "Corporativos - Dólar", 
-                                    (df_c["Cupones"].fillna(0) - df_c["Gastos"].fillna(0)) / df_c["OperacionVentaDolarOficial"], 
-                                    df_c["Dividendos"].fillna(0))
-        df_cupones_final = df_c.groupby("Ticker")[["CuponUSD"]].sum().reset_index()
+        df_c_filt = df_c[(df_c["Tipo Movimiento"].isin(["Cupón", "Dividendo"])) & (df_c["Tipo"].isin(["Corporativos - Dólar", "Cedears"])) & (df_c["Moneda Venta"].isin(["Dólares C.V. 7000", "Dólares"]))]
+        df_c_filt["CuponUSD"] = np.where(df_c_filt["Tipo"] == "Corporativos - Dólar", (df_c_filt["Cupones"].fillna(0) - df_c_filt["Gastos"].fillna(0)) / df_c_filt["OperacionVentaDolarOficial"], df_c_filt["Dividendos"].fillna(0))
+        df_cupones_final = df_c_filt.groupby("Ticker")[["CuponUSD"]].sum().reset_index()
 
-        # 9. CARGA A SUPABASE
-        barra_progreso.progress(0.85, text="Impactando en Supabase...")
+        # 8. CARGA A SUPABASE
+        barra_progreso.progress(0.85, text="Guardando en Base de Datos...")
         conn_url = f'postgresql+psycopg2://{db_user}:{db_pass}@{db_host}:5432/{db_name}?sslmode=require'
         engine = create_engine(conn_url, poolclass=NullPool)
 
         with engine.begin() as conn:
-            # Fotos Actuales
+            # Fotos actuales
             df_cedears.to_sql('cedears', conn, if_exists='replace', index=False)
             df_on.to_sql('on_movimientos', conn, if_exists='replace', index=False)
             df_cupones_final.to_sql('dividendos_cupones_realizados', conn, if_exists='replace', index=False)
@@ -131,43 +130,41 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
             df_final_listo.to_sql('datos_historicos_cedears', conn, if_exists='append', index=False)
             df_on_final_listo.to_sql('datos_historicos_on', conn, if_exists='append', index=False)
 
-            # HISTORICO DEL DOLAR
+            # Histórico Dólar
             if dolar_oficial and dolar_mep:
-                df_h_dolar = pd.DataFrame([
-                    {'fecha': date.today(), 'tipo': 'Oficial', 'valor': dolar_oficial},
-                    {'fecha': date.today(), 'tipo': 'MEP', 'valor': dolar_mep}
-                ])
-                try:
-                    df_h_dolar.to_sql('historico_dolar', conn, if_exists='append', index=False)
-                except:
-                    pass # Evita error si se corre 2 veces el mismo día
+                df_h_dolar = pd.DataFrame([{'fecha': date.today(), 'tipo': 'Oficial', 'valor': dolar_oficial}, {'fecha': date.today(), 'tipo': 'MEP', 'valor': dolar_mep}])
+                try: df_h_dolar.to_sql('historico_dolar', conn, if_exists='append', index=False)
+                except: pass
 
         barra_progreso.progress(1.0, text="¡Completado!")
-        return True, "✅ Datos actualizados correctamente en Supabase."
+        return True, "✅ Datos procesados y cargados exitosamente."
 
     except Exception as e:
-        return False, f"❌ Error general: {e}"
+        return False, f"❌ Error: {e}"
 
-# --- FRONTEND ---
-st.set_page_config(layout="centered", page_title="Inversiones Balanz+IOL")
-st.title("📊 Gestor de Inversiones (Contable)")
+# --- INTERFAZ STREAMLIT ---
+st.set_page_config(layout="centered", page_title="Análisis Inversiones")
+st.title("📊 Análisis de Inversiones (Contable)")
 
-with st.form("form_carga"):
-    uploaded_file = st.file_uploader("Sube tu Excel de Balanz", type=["xlsx"])
+with st.form("upload_form"):
+    uploaded_file = st.file_uploader("Sube tu archivo de Balanz", type=["xlsx"])
     st.divider()
-    st.subheader("Credenciales Supabase")
+    st.subheader("Credenciales de Supabase")
     col1, col2 = st.columns(2)
     with col1:
         db_host = st.text_input("Host")
         db_user = st.text_input("User")
     with col2:
-        db_name = st.text_input("DB Name", "postgres")
-        db_pass = st.text_input("Password", type="password")
+        db_name = st.text_input("Database Name", "postgres")
+        db_pass = st.text_input("Contraseña", type="password")
     
-    submit = st.form_submit_button("🚀 Iniciar Procesamiento Masivo", use_container_width=True)
+    submit = st.form_submit_button("🚀 Procesar y Cargar Datos", use_container_width=True)
 
 if submit:
     if uploaded_file and db_host and db_pass:
-        exito, mensaje = procesar_y_guardar_en_sql(uploaded_file, db_host, db_name, db_user, db_pass)
-        if exito: st.success(mensaje)
-        else: st.error(mensaje)
+        with st.spinner("Procesando..."):
+            exito, mensaje = procesar_y_guardar_en_sql(uploaded_file, db_host, db_name, db_user, db_pass)
+            if exito: st.success(mensaje)
+            else: st.error(mensaje)
+    else:
+        st.warning("Completa todos los campos.")
