@@ -75,7 +75,7 @@ def procesar_y_guardar_en_sql(archivo_subido, db_host, db_name, db_user, db_pass
             # - Si es 'Pesos': (Cantidad * Precio_Compra) + Gastos
             dff["costo_ars"] = np.where(
                 dff["moneda"] == "Dólares",
-                (dff["cantidad"] * dff["precio_compra"] * tc_historico) + dff["gastos"],
+                (dff["cantidad"] * dff["precio_compra"] / tc_historico) + dff["gastos"],
                 (dff["cantidad"] * dff["precio_compra"]) + dff["gastos"]
             )
 
